@@ -1,18 +1,92 @@
 #imports
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from deephaven2 import read_csv
+from deephaven import parquet
+from deephaven import agg as agg
+from deephaven.plot.figure import Figure
 import time
-from deephaven2 import merge
-from deephaven2 import pandas
-
-import deephaven.Types as dht
-
-header = {"CUST_ID": dht.string,"START_DATE": dht.string, "END_DATE": dht.string, "TRANS_ID": dht.string,"CUST_ID": dht.string, "DATE": dht.string, "YEAR": dht.short, "MONTH": dht.byte,"DAY": dht.byte ,"EXP_TYPE": dht.string, "AMOUNT": dht.double}
 
 
-def get_rows(steps,count,names,path='/data/transactions.csv'):
+
+# readh the csv file in increments
+def read_csv():
+    steps = 5000000
+    count = 0
+    while True:
+    #for i in range(0,5):
+        i=count
+        start = time.time()
+        table = read_csv(file, skip_rows=i*steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns = True)
+        parquet.write(table, f"/data/transaction_parquet/{i}.parquet")
+        end = time.time()
+        print("read "+str(table.size)+ " in "+ str(end - start) + " seconds." + " iteration number ", i)
+
+        count+=1
+
+        #Exit loop
+        if table.size!=steps:
+            break
+        del(table)
+
+# read the entire directory of parquet files
+def read_parquet():
+    start = time.time()
+    table = parquet.read("/data/transaction_parquet/")
+    end = time.time()
+    print("Read Parquet "+ str(end - start) + " seconds." )
+    return table
+
+# make a total sum option 1
+def dh_sum_by_expends(table):
+    start = time.time()
+    data_table = table.view(formulas = ["YEAR","AMOUNT"]).sum_by(by = ["YEAR"]).sort(order_by = ["YEAR"])
+    end = time.time()
+    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
+    return data_table
+
+# make a total sum option 2
+def dh_agg_expends(table):
+    start = time.time()
+    data_table = table.agg_by([agg.sum_(cols = ["AMOUNT = AMOUNT"]),\
+                            agg.count_(col = "count")], by = ["YEAR"]).sort(order_by = ["YEAR"])
+    end = time.time()
+    print("Deephaven agg expense time: " + str(end - start) + " seconds.")
+    return data_table
+
+# monthly sum, replicated logic from
+# https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
+def dh_sum_by_monthly(table):
+    start = time.time()
+    data_table = table.where(["YEAR ==2020", "EXP_TYPE=`Entertainment`"])\
+        .agg_by([agg.sum_(cols = ["AMOUNT"])], by = ["CUST_ID","MONTH"])\
+        .drop_columns(cols=["CUST_ID"])\
+        .avg_by(["MONTH"])\
+        .sort(order_by = ["MONTH"])
+    end = time.time()
+    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
+    return data_table
+
+
+# call the method to read the file into Deephaven
+table = read_parquet()
+
+# create 3 tables based on the aggregations we desire
+deephaven_expense_table_sum = dh_sum_by_expends(table)
+deephaven_expense_table_agg = dh_agg_expends(table)
+deephaven_sum_by_monthly=dh_sum_by_monthly(table)
+
+# plot the tables
+figure = Figure()
+plot_expenses_sum=figure.plot_xy(series_name="expense", t=deephaven_expense_table_sum, x="YEAR",y="AMOUNT").show()
+plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_table_agg, x="YEAR",y="AMOUNT").show()
+plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by_monthly, x="MONTH",y="AMOUNT")\
+                    .axis(min=-100.0, max=1400.0).show()
+
+
+
+# Everything below here are the panda script we do not use but for your reference.
+# from https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
+
+def get_rows(steps,count,names,path='../Data/transactions.csv'):
+
     """
     Returns a subset of rows from a CSV. The fist [steps]*[count]
     rows are skipped and the next [steps] rows are returned.
@@ -35,8 +109,6 @@ def get_rows(steps,count,names,path='/data/transactions.csv'):
                          names=names)
     return df
 
-
-
 def read_panda(tables):
     start = time.time()
     steps = 5000000
@@ -52,8 +124,7 @@ def read_panda(tables):
 
         #Return subsection of dataset
         df = get_rows(steps,count,names)
-        table = pandas.to_table(df).update(formulas = ["CUST_ID=(String)CUST_ID", "EXP_TYPE=(String)EXP_TYPE"])
-        tables.append(table)
+
         #Update number of transactions
         n+=len(df)
 
@@ -137,46 +208,3 @@ def expend_monthly(df):
     end = time.time()
     print("Panda monthly time: " + str(end - start) + " seconds.")
     return total_exp.groupby(['MONTH'])['AMOUNT'].mean()
-
-
-def dh_sum_by_expends(table):
-    start = time.time()
-    from deephaven2 import agg as agg
-    data_table = table.view(formulas = ["YEAR","AMOUNT"]).sum_by(by = ["YEAR"]).sort(order = ["YEAR"])
-    end = time.time()
-    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
-    return data_table
-
-
-def dh_agg_expends(table):
-    start = time.time()
-    data_table = table.agg_by([agg.sum_(cols = ["Sum = AMOUNT"]),\
-                            agg.count_(col = "count")], by = ["YEAR"]).sort(order = ["YEAR"])
-    end = time.time()
-    print("Deephaven agg expense time: " + str(end - start) + " seconds.")
-    return data_table
-
-## Takes up to 90 minutes
-#tables = read_panda([])
-
-##Each call takes up to 60 minutes
-#panda_total_exp_year  = expend_year(df)
-#panda_monthly_exp = expend_monthly(df)
-
-##turn dataFrame into a Deephaven table
-#table = pandas.to_table(df).update(formulas = ["CUST_ID=(String)CUST_ID", "EXP_TYPE=(String)EXP_TYPE"])
-
-#deephaven_expense_table = dh_sum_by_expends(table)
-#deephaven_expense_table = dh_agg_expends(table)
-
-
-
-
-##Plot aggregation
-plt.figure(figsize=(10, 5))
-plt.plot(total_exp_year.index,total_exp_year/1000000000)
-plt.ylabel('Total expenditure ($ billion)',size=15)
-plt.xlabel('Year',size=15)
-plt.ylim(bottom=0)
-m_figure=plt.gcf()
-print(total_exp_year)
