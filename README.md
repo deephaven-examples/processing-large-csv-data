@@ -57,7 +57,6 @@ import time
 steps = 5000000
 count = 0
 while True:
-#for i in range(0,5):
     i=count
     start = time.time()
     table = read_csv(file, skip_rows=i*steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns = True)
