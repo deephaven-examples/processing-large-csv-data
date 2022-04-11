@@ -1,26 +1,27 @@
-# processing-large-csv-data
+# Processing large CSV data
 
-Recently [Conor O'Sullivan](https://conorosullyds.medium.com/) wrote a great article on [Batch Processing 22GB of Transaction Data with Pandas](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36) which discusses "How you get around limited computational resources and work with large datasets." The data set is a single CSV file of 22GB. Here is the full dataset on [Kaggle](https://www.kaggle.com/conorsully1/simulated-transactions). You can also find the notebook [Connor's tutorial on GitHub](https://github.com/conorosully/medium-articles/blob/master/src/batch_processing.ipynb) or the [Deephaven example on GitHub](https://github.com/deephaven-examples/processing-large-csv-data).
+Recently [Conor O'Sullivan](https://conorosullyds.medium.com/) wrote a great article on [Batch Processing 22GB of Transaction Data with Pandas](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36) that discusses "[h]ow you get around limited computational resources and work with large datasets." His data set is a single CSV file of 22GB, which can be found  on [Kaggle](https://www.kaggle.com/conorsully1/simulated-transactions). You can also find his notebook, [Connor's tutorial](https://github.com/conorosully/medium-articles/blob/master/src/batch_processing.ipynb) and the [Deephaven example](https://github.com/deephaven-examples/processing-large-csv-data) on GitHub.
 
-Using Pandas with limited resources Connor noted aggregations took about 50 minutes each.  
+Using pandas with limited resources, Connor noted aggregations took about 50 minutes each.  
 
 In this example, I'll show you how to take that example and remove pandas, also with limited resources, and use [Deephaven](https://deephaven.io/) to speed things up as much as possible.
 
-With this code single aggregations take less than one minute. With the panda code it was over 50 minutes. That is a great time reduction.
+With this code, single aggregations take _less than one minute_. With the pandas code, runtime was over 50 minutes. That's an astounding time reduction.
 
 Here are the actual times I got on my normal laptop:
-- Read Parquet in 1.0 seconds.
-- Deephaven sum_by expense time: 55.9 seconds.
-- Deephaven agg expense time: 6.1 seconds.
-- Deephaven sum_by expense time: 152.9 seconds.
+
+- Read Parquet:  1.0 second.
+- Deephaven `sum_by` expense time: 55.9 seconds.
+- Deephaven `agg` expense time: 6.1 seconds.
+- Deephaven `sum_by` expense time: 152.9 seconds.
 
 Note that the last one is actually several aggregations.
 
-The first issue with this data set is loading the data to work with in Python.  Using Pandas on the full dataset poses a problem as Pandas tries to load the entire data set into memory.  With limited resources this is not possible and causes kernal to die.
+The first issue with datasets this large is loading it to work with in Python. pandas tries to load the entire data set into memory -  this is not possible with limited resources and causes kernal to die.
 
-The Deephaven approach to csv files is a little different. For more information see our [blog post on CSV](https://deephaven.io/blog/2022/02/23/csv-reader/).
+Deephaven approaches CSV files differently. For more information, see our [blog post on designing our CSV reader](https://deephaven.io/blog/2022/02/23/csv-reader/).
 
-I always think it is important to use the right tool for the job. In this case though the data come sin as a CSV I think the right format is a parquet file.  I read in the data, and wrote each step as a parquet file.  This means I can come back and read in the parquet files rather than csv.
+I always think it's important to use the right tool for the job. In this case, the data coms in as a CSV, but actually, a better format is a Parquet file.  I read in the data and wrote each step as a Parquet file.  This means I can come back and read in the Parquet files rather than using CSVs.
 
 
 ## Dependencies
@@ -37,18 +38,19 @@ cd processing-large-csv-data
 docker-compose up
 ```
 
-This code and/or script is meant to work inside the current Deephaven IDE.  Pleasee see our [Quickstart](https://deephaven.io/core/docs/tutorials/quickstart/) if there are any problems or reach out on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
+This code and/or script is meant to work inside the current Deephaven IDE.  Please see our [Quickstart](https://deephaven.io/core/docs/tutorials/quickstart/) if there are any problems or reach out on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
 
 
-To read in the CSV files, even with deephaven was about 50 minutes.  To read in the parquet file it was less than 1 second.
+To read in the CSV files took about 50 minutes, even with Deephaven.  Reading in the Parquet file took less than 1 second.
 
-To read in the parquet file:
+To read in the Parquet file:
+
 ```python
 from deephaven import parquet
 table = parquet.read("/data/transaction_parquet/")
 ```
 
-Here is the code needed ifyou want to translate the large csv into smaller parquet files, there are timing steps so you can see how long things take:
+If you want to translate the large CSV into smaller Parquet files, use this code. The timing steps show you how long things take:
 
 ```python
 from deephaven import read_csv
@@ -72,11 +74,13 @@ while True:
     del(table)
 ```
 
-When you run a Panda aggregation [Conor O'Sullivan's article notes](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36) it takes about 50 minutes. On my laptop the time is about 90 minutes. While the Deephaven aggregation, since we are built for large data, takes less than 30 second.  
+- When you run a pandas aggregation, as [Conor O'Sullivan's article notes](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36), it takes about 50 minutes. 
+- On my laptop, this was actually closer to 90 minutes. 
+- With the Deephaven aggregation, the time was reduced to **less than 30 seconds**.  Deephaven is engineered for large data. 
 
-The time improvement is nice, but the thing I really like is that we do not need to do any special batching. It just works with built in functions.
+The time improvement is nice, but I also like that we don't need to do any special batching. It just works with built-in functions.
 
-Here are two different ways to sum up the total expendatures per year and one can see that the results match the original article:
+Here are two different ways to sum up the total expenditures per year. You can see that the results match the original article:
 
 ```python
 from deephaven.plot.figure import Figure
@@ -109,7 +113,7 @@ plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_tabl
 
 ![img](total_expend.png)
 
-More advanced operations can also be directly done, such is the second example
+More advanced operations can be done directly, as shown here: 
 
 ```python
 def dh_sum_by_monthly(table):
@@ -130,10 +134,8 @@ plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by
 
 ![img](monthly.png)
 
-
-With data sets this large there are a lot of options. Time should never be a limiting factor in the science we can do.
-
-Time tests are wrapping every method, this makes the code look more complicated but then you can see the speed of Deephaven.  Comment out what operation you want to test to see its performance.
-
+The code looks more complicated than a typical query because we've wrapped every method in time tests to show the speed of Deephaven. Comment out what operation you want to test to see its performance.
 
 Let us know how your query does on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
+
+There are a lot of options with datasets this large. Time should never be a limiting factor in the data science we can do.
