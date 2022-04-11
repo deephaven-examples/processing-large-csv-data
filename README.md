@@ -1,48 +1,88 @@
-#imports
+# processing-large-csv-data
+
+Recently [Conor O'Sullivan](https://conorosullyds.medium.com/) wrote a great article on [Batch Processing 22GB of Transaction Data with Pandas](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36) which discusses "How you get around limited computational resources and work with large datasets." The data set is a single CSV file of 22GB. Here is the full dataset on [Kaggle](https://www.kaggle.com/conorsully1/simulated-transactions). You can also find the notebook [Connor's tutorial on GitHub](https://github.com/conorosully/medium-articles/blob/master/src/batch_processing.ipynb) or the [Deephaven example on GitHub](https://github.com/deephaven-examples/processing-large-csv-data).
+
+Using Pandas with limited resources Connor noted aggregations took about 50 minutes each.  
+
+In this example, I'll show you how to take that example and remove pandas, also with limited resources, and use [Deephaven](https://deephaven.io/) to speed things up as much as possible.
+
+With this code single aggregations take less than one minute. With the panda code it was over 50 minutes. That is a great time reduction.
+
+Here are the actual times I got on my normal laptop:
+- Read Parquet in 1.- seconds.
+- Deephaven sum_by expense time: 55.9 seconds.
+- Deephaven agg expense time: 6.1 seconds.
+- Deephaven sum_by expense time: 152.9 seconds.
+
+Note that the last one is actually several aggregations.
+
+The first issue with this data set is loading the data to work with in Python.  Using Pandas on the full dataset poses a problem as Pandas tries to load the entire data set into memory.  With limited resources this is not possible and causes kernal to die.
+
+The Deephaven approach to csv files is a little different. For more information see our [blog post on CSV](https://deephaven.io/blog/2022/02/23/csv-reader/).
+
+I always think it is important to use the right tool for the job. In this case though the data come sin as a CSV I think the right format is a parquet file.  I read in the data, and wrote each step as a parquet file.  This means I can come back and read in the parquet files rather than csv.
+
+
+## Dependencies
+
+* The [Deephaven-core dependencies](https://github.com/deephaven/deephaven-core#required-dependencies) are required to build and run this project.
+
+## Launch
+
+To launch the latest release, you can clone the repository via:
+
+```shell
+git clone https://github.com/deephaven-examples/processing-large-csv-data.git
+cd processing-large-csv-data
+docker-compose up
+```
+
+This code and/or script is meant to work inside the current Deephaven IDE.  Pleasee see our [Quickstart](https://deephaven.io/core/docs/tutorials/quickstart/) if there are any problems or reach out on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
+
+
+To read in the CSV files, even with deephaven was about 50 minutes.  To read in the parquet file it was less than 1 second.
+
+To read in the parquet file:
+```python
 from deephaven import parquet
-from deephaven import agg as agg
-from deephaven.plot.figure import Figure
+table = parquet.read("/data/transaction_parquet/")
+```
+
+Here is the code needed ifyou want to translate the large csv into smaller parquet files, there are timing steps so you can see how long things take:
+
+```python
+from deephaven import read_csv
 import time
 
-
-
-# readh the csv file in increments
-def read_csv():
-    steps = 5000000
-    count = 0
-    while True:
-    #for i in range(0,5):
-        i=count
-        start = time.time()
-        table = read_csv(file, skip_rows=i*steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns = True)
-        parquet.write(table, f"/data/transaction_parquet/{i}.parquet")
-        end = time.time()
-        print("read "+str(table.size)+ " in "+ str(end - start) + " seconds." + " iteration number ", i)
-
-        count+=1
-
-        #Exit loop
-        if table.size!=steps:
-            break
-        del(table)
-
-# read the entire directory of parquet files
-def read_parquet():
+steps = 5000000
+count = 0
+while True:
+#for i in range(0,5):
+    i=count
     start = time.time()
-    table = parquet.read("/data/transaction_parquet/")
+    table = read_csv(file, skip_rows=i*steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns = True)
+    parquet.write(table, f"/data/transaction_parquet/{i}.parquet")
     end = time.time()
-    print("Read Parquet "+ str(end - start) + " seconds." )
-    return table
+    print("read "+str(table.size)+ " in "+ str(end - start) + " seconds." + " iteration number ", i)
 
-# make a total sum option 1
-def dh_sum_by_expends(table):
-    start = time.time()
-    data_table = table.view(formulas = ["YEAR","AMOUNT"]).sum_by(by = ["YEAR"]).sort(order_by = ["YEAR"])
-    end = time.time()
-    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
-    return data_table
+    count+=1
 
-# make a total sum option 2
+    #Exit loop
+    if table.size!=steps:
+        break
+    del(table)
+```
+
+When you run a Panda aggregation [Conor O'Sullivan's article notes](https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36) it takes about 50 minutes. On my laptop the time is about 90 minutes. While the Deephaven aggregation, since we are built for large data, takes less than 30 second.  
+
+The time improvement is nice, but the thing I really like is that we do not need to do any special batching. It just works with built in functions.
+
+Here are two different ways to sum up the total expendatures per year and one can see that the results match the original article:
+
+```python
+from deephaven.plot.figure import Figure
+from deephaven import agg as agg
+
 def dh_agg_expends(table):
     start = time.time()
     data_table = table.agg_by([agg.sum_(cols = ["AMOUNT = AMOUNT"]),\
@@ -51,8 +91,28 @@ def dh_agg_expends(table):
     print("Deephaven agg expense time: " + str(end - start) + " seconds.")
     return data_table
 
-# monthly sum, replicated logic from
-# https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
+def dh_sum_by_expends_monthly(table):
+    start = time.time()
+    data_table = table.where(["YEAR ==2020", "EXP_TYPE=`Entertainment`"]).agg_by([\
+                            agg.sum_(["AMOUNT = AMOUNT"])], by = ["MONTH"]).sort(order_by = ["MONTH"])
+    end = time.time()
+    print("Deephaven monthly expense time: " + str(end - start) + " seconds.")
+    return data_table
+
+deephaven_expense_table_sum = dh_sum_by_expends(table)
+deephaven_expense_table_agg = dh_agg_expends(table)
+
+figure = Figure()
+plot_expenses_sum=figure.plot_xy(series_name="expense", t=deephaven_expense_table_sum, x="YEAR",y="AMOUNT").show()
+plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_table_agg, x="YEAR",y="AMOUNT").show()
+
+```
+
+![img](total_expend.png)
+
+More advanced operations can also be directly done, such is the second example
+
+```python
 def dh_sum_by_monthly(table):
     start = time.time()
     data_table = table.where(["YEAR ==2020", "EXP_TYPE=`Entertainment`"])\
@@ -61,150 +121,20 @@ def dh_sum_by_monthly(table):
         .avg_by(["MONTH"])\
         .sort(order_by = ["MONTH"])
     end = time.time()
-    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
+    print("Deephaven sum_by monthly time: " + str(end - start) + " seconds.")
     return data_table
 
-
-# call the method to read the file into Deephaven
-table = read_parquet()
-
-# create 3 tables based on the aggregations we desire
-deephaven_expense_table_sum = dh_sum_by_expends(table)
-deephaven_expense_table_agg = dh_agg_expends(table)
 deephaven_sum_by_monthly=dh_sum_by_monthly(table)
 
-# plot the tables
-figure = Figure()
-plot_expenses_sum=figure.plot_xy(series_name="expense", t=deephaven_expense_table_sum, x="YEAR",y="AMOUNT").show()
-plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_table_agg, x="YEAR",y="AMOUNT").show()
-plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by_monthly, x="MONTH",y="AMOUNT")\
-                    .axis(min=-100.0, max=1400.0).show()
+plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by_monthly, x="MONTH",y="AMOUNT").show()
+```
+
+![img](monthly.png)
 
 
+With data sets this large there are a lot of options. Time should never be a limiting factor in the science we can do.
 
-# Everything below here are the panda script we do not use but for your reference.
-# from https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
-
-def get_rows(steps,count,names,path='../Data/transactions.csv'):
-
-    """
-    Returns a subset of rows from a CSV. The fist [steps]*[count]
-    rows are skipped and the next [steps] rows are returned.
-
-    params
-    ------------
-        steps: number of rows returned
-        count: count variable updated each iteration
-        names: columns names of dataset
-        path: location of csv
-    """
-
-    if count ==0:
-        df = pd.read_csv(path,
-                         nrows=steps)
-    else:
-        df = pd.read_csv(path,
-                         skiprows=steps*count,
-                         nrows=steps,
-                         names=names)
-    return df
-
-def read_panda(tables):
-    start = time.time()
-    steps = 5000000
-    names = ['CUST_ID', 'START_DATE', 'END_DATE', 'TRANS_ID', 'DATE', 'YEAR',
-        'MONTH', 'DAY', 'EXP_TYPE', 'AMOUNT']
-
-    #Initialise number of transactions
-    n = 0
-
-    #Initialise count
-    count = 0
-    while True:
-
-        #Return subsection of dataset
-        df = get_rows(steps,count,names)
-
-        #Update number of transactions
-        n+=len(df)
-
-        #Update count
-        count+=1
-
-        #Exit loop
-        if len(df)!=steps:
-            break
-
-    #Output number of rows
-    print(n)
-    end = time.time()
-    print("Panda csv_read time: " + str(end - start) + " seconds.")
-    return tables
+Time tests are wrapping every method, this makes the code look more complicated but then you can see the speed of Deephaven.  Comment out what operation you want to test to see its performance.
 
 
-def expend_year(df):
-    start = time.time()
-    steps = 5000000
-    names = ['CUST_ID', 'START_DATE', 'END_DATE', 'TRANS_ID', 'DATE', 'YEAR',
-        'MONTH', 'DAY', 'EXP_TYPE', 'AMOUNT']
-
-    #Initialise number of transactions
-    n = 0
-
-    #Initialise yearly totals
-    total_exp = pd.Series([0.0]*11, index=range(2010,2021))
-
-    count = 0
-    while True:
-
-        df = get_rows(steps,count,names)
-
-        #Get yearly totals for subsection
-        exp = df.groupby(['YEAR'])['AMOUNT'].sum()
-
-        #Loop over years 2010 to 2020
-        for year in range(2010,2021):
-            #Update yearly totals
-            total_exp[year] += exp[year]
-
-        count+=1
-        table = pandas.to_table(df).update(formulas = ["CUST_ID=(String)CUST_ID", "EXP_TYPE=(String)EXP_TYPE"])
-        tables.append(table)
-
-        #Exit loop
-        if len(df)!=steps:
-            break
-    end = time.time()
-    print("Panda total expense time: " + str(end - start) + " seconds.")
-    return total_exp
-
-def expend_monthly(df):
-    start = time.time()
-    #Create empty total expenditure dataframe
-    total_exp = pd.DataFrame(columns=['CUST_ID','MONTH','AMOUNT'])
-
-    count = 0
-    while True:
-
-        df = get_rows(steps,count,names)
-
-        #Calculate monthly totals for each customer
-        df_2020 = df[(df.YEAR==2020) & (df.EXP_TYPE=='Entertainment')]
-        sum_exp = df_2020.groupby(['CUST_ID','MONTH'],as_index=False)['AMOUNT'].sum()
-
-        #Append monthly totals
-        total_exp = total_exp.append(sum_exp)
-
-        #Aggregate again so CUST_ID and MONTH are unique
-        total_exp = total_exp.groupby(['CUST_ID','MONTH'],as_index=False)['AMOUNT'].sum()
-
-        count+=1
-
-        #Exit loop
-        if len(df)!=steps:
-            break
-
-    #Final aggregations
-    end = time.time()
-    print("Panda monthly time: " + str(end - start) + " seconds.")
-    return total_exp.groupby(['MONTH'])['AMOUNT'].mean()
+Let us know how your query does on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
