@@ -9,7 +9,7 @@ In this example, I'll show you how to take that example and remove pandas, also 
 With this code single aggregations take less than one minute. With the panda code it was over 50 minutes. That is a great time reduction.
 
 Here are the actual times I got on my normal laptop:
-- Read Parquet in 1.- seconds.
+- Read Parquet in 1.0 seconds.
 - Deephaven sum_by expense time: 55.9 seconds.
 - Deephaven agg expense time: 6.1 seconds.
 - Deephaven sum_by expense time: 152.9 seconds.
