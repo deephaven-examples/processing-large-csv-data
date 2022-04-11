@@ -104,7 +104,6 @@ deephaven_expense_table_agg = dh_agg_expends(table)
 figure = Figure()
 plot_expenses_sum=figure.plot_xy(series_name="expense", t=deephaven_expense_table_sum, x="YEAR",y="AMOUNT").show()
 plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_table_agg, x="YEAR",y="AMOUNT").show()
-
 ```
 
 ![img](total_expend.png)
