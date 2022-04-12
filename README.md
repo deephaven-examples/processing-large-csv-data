@@ -10,10 +10,10 @@ With this code, single aggregations take _less than one minute_. With the pandas
 
 Here are the actual times I got on my normal laptop:
 
-- Read Parquet:  1.0 second.
+- Read Parquet Directory:  1.0 second.
 - Deephaven `sum_by` expense time: 55.9 seconds.
 - Deephaven `agg` expense time: 6.1 seconds.
-- Deephaven `sum_by` expense time: 152.9 seconds.
+- Deephaven monthly `sum_`  and ` avg_by` expense time: 152.9 seconds.
 
 Note that the last one is actually several aggregations.
 
@@ -41,13 +41,15 @@ docker-compose up
 This code and/or script is meant to work inside the current Deephaven IDE.  Please see our [Quickstart](https://deephaven.io/core/docs/tutorials/quickstart/) if there are any problems or reach out on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
 
 
-To read in the CSV files took about 50 minutes, even with Deephaven.  Reading in the Parquet file took less than 1 second.
+To read in the CSV files took about 50 minutes, even with Deephaven.  Reading in the Parquet file took less than a tenth of a second.
+
+`read parquet in 0.01 seconds.`
 
 To read in the Parquet file:
 
 ```python
 from deephaven import parquet
-table = parquet.read("/data/transaction_parquet/")
+table = parquet.read("/data/transaction.parquet")
 ```
 
 If you want to translate the large CSV into smaller Parquet files, use this code. The timing steps show you how long things take:
