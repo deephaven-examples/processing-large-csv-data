@@ -45,7 +45,13 @@ To read in the CSV files took about 50 minutes, even with Deephaven.  Reading in
 
 `read parquet in 0.01 seconds.`
 
-To read in the Parquet file:
+The parquet format for the data can be found on [kaggle](https://www.kaggle.com/datasets/amandamartin62/simulated-transactions-parquet-format)
+
+```shell
+kaggle datasets download -d amandamartin62/simulated-transactions-parquet-format
+```
+
+To read in the Parquet file, place that file in the data directory and execute inside Deephaven:
 
 ```python
 from deephaven import parquet
