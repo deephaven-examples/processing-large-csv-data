@@ -21,7 +21,7 @@ The first issue with datasets this large is loading it to work with in Python. p
 
 Deephaven approaches CSV files differently. For more information, see our [blog post on designing our CSV reader](https://deephaven.io/blog/2022/02/23/csv-reader/).
 
-I always think it's important to use the right tool for the job. In this case, the data coms in as a CSV, but actually, a better format is a Parquet file.  I read in the data and wrote each step as a Parquet file.  This means I can come back and read in the Parquet files rather than using CSVs.
+I always think it's important to use the right tool for the job. In this case, the data comes in as a CSV, but actually, a better format is a Parquet file.  I read in the data and wrote each step as a Parquet file.  This means I can come back and read in the Parquet files rather than using CSVs.
 
 
 ## Dependencies
@@ -62,6 +62,7 @@ If you want to translate the large CSV into smaller Parquet files, use this code
 
 ```python
 from deephaven import read_csv
+from deephaven import parquet
 import time
 
 steps = 5000000
