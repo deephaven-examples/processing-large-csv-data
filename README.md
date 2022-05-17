@@ -145,6 +145,6 @@ plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by
 
 The code looks more complicated than a typical query because we've wrapped every method in time tests to show the speed of Deephaven. Comment out what operation you want to test to see its performance.
 
-Let us know how your query does on [Slack](https://join.slack.com/t/deephavencommunity/shared_invite/zt-11x3hiufp-DmOMWDAvXv_pNDUlVkagLQ).
+Let us know how your query does on [Slack](https://deephaven.io/slack).
 
 There are a lot of options with datasets this large. Time should never be a limiting factor in the data science we can do.
