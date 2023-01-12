@@ -1,42 +1,11 @@
 version: "3.4"
 
 services:
-  server:
-    image: ghcr.io/deephaven/server:${VERSION:-edge}
-    expose:
-      - '8080'
-    volumes:
-      - ./data:/data
-      - api-cache:/cache
-    environment:
-      - JAVA_TOOL_OPTIONS=-Xmx8g -Ddeephaven.console.type=python -Ddeephaven.application.dir=/data/app.d
-
-  web:
-    image: ghcr.io/deephaven/web:${VERSION:-edge}
-    expose:
-      - '80'
-    volumes:
-      - ./data:/data
-      - web-tmp:/tmp
-
-  grpc-proxy:
-    image: ghcr.io/deephaven/grpc-proxy:${VERSION:-edge}
-    environment:
-      - BACKEND_ADDR=server:8080
-    depends_on:
-      - server
-    expose:
-      - '8080'
-
-  envoy:
-    image: ghcr.io/deephaven/envoy:${VERSION:-edge}
-    depends_on:
-      - web
-      - grpc-proxy
-      - server
+  deephaven:
+    image: ghcr.io/deephaven/server:latest
     ports:
-      - "10000:10000"
-
-volumes:
-    web-tmp:
-    api-cache:
+      - "${DEEPHAVEN_PORT:-10000}:10000"
+    volumes:
+      - ./data:/data
+    environment:
+      - START_OPTS=-Xmx8g

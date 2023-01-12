@@ -1,67 +1,66 @@
-#imports
-from deephaven import parquet
-from deephaven import agg as agg
 from deephaven.plot.figure import Figure
+from deephaven import parquet as dhpq
+from deephaven import read_csv
+from deephaven import agg
+
 import time
+import os
 
+pq_folder = "/data/transaction_parquet/"
 
+if not(os.path.isdir(pq_folder)):
+    os.mkdir(pq_folder)
 
-# readh the csv file in increments
-def read_csv():
-    steps = 5000000
+def incremental_csv_read(fname):
+    steps = 5_000_000
     count = 0
     while True:
-    #for i in range(0,5):
-        i=count
         start = time.time()
-        table = read_csv(file, skip_rows=i*steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns = True)
-        parquet.write(table, f"/data/transaction_parquet/{i}.parquet")
+        table = read_csv(fname, skip_rows=count * steps, num_rows=steps, allow_missing_columns=True, ignore_excess_columns=True)
         end = time.time()
-        print("read "+str(table.size)+ " in "+ str(end - start) + " seconds." + " iteration number ", i)
+        dhpq.write(table, f"{pq_folder}{count}.parquet")
+        print(f"Read {table.size} in {end - start} seconds on iteration number {count}.")
+        count += 1
 
-        count+=1
-
-        #Exit loop
-        if table.size!=steps:
+        if table.size != steps:
             break
-        del(table)
+        table = None
 
-# read the entire directory of parquet files
-def read_parquet():
+def read_pq_folder():
     start = time.time()
-    table = parquet.read("/data/transaction_parquet/")
+    table = dhpq.read(pq_folder)
     end = time.time()
-    print("Read Parquet "+ str(end - start) + " seconds." )
+    print(f"Read Parquet data in {end - start} seconds.")
     return table
 
 # make a total sum option 1
 def dh_sum_by_expends(table):
     start = time.time()
-    data_table = table.view(formulas = ["YEAR","AMOUNT"]).sum_by(by = ["YEAR"]).sort(order_by = ["YEAR"])
+    data_table = table.view(formulas=["YEAR","AMOUNT"]).sum_by(by=["YEAR"]).sort(order_by=["YEAR"])
     end = time.time()
-    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
+    print(f"Deephaven sum_by/sort expense time: {end - start} seconds.")
     return data_table
 
 # make a total sum option 2
 def dh_agg_expends(table):
     start = time.time()
-    data_table = table.agg_by([agg.sum_(cols = ["AMOUNT = AMOUNT"]),\
-                            agg.count_(col = "count")], by = ["YEAR"]).sort(order_by = ["YEAR"])
+    data_table = table.agg_by([agg.sum_(cols=["AMOUNT = AMOUNT"]),\
+                            agg.count_(col="count")], by=["YEAR"]).sort(order_by=["YEAR"])
     end = time.time()
-    print("Deephaven agg expense time: " + str(end - start) + " seconds.")
+    print(f"Deephaven agg expense time: {end - start} seconds.")
     return data_table
 
 # monthly sum, replicated logic from
 # https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
 def dh_sum_by_monthly(table):
     start = time.time()
-    data_table = table.where(["YEAR ==2020", "EXP_TYPE=`Entertainment`"])\
-        .agg_by([agg.sum_(cols = ["AMOUNT"])], by = ["CUST_ID","MONTH"])\
+    data_table = table.where(["YEAR == 2020", "EXP_TYPE = `Entertainment`"])\
+        .agg_by([agg.sum_(cols=["AMOUNT"])], by=["CUST_ID","MONTH"])\
         .drop_columns(cols=["CUST_ID"])\
         .avg_by(["MONTH"])\
-        .sort(order_by = ["MONTH"])
+        .sort(order_by=["MONTH"])
     end = time.time()
-    print("Deephaven sum_by expense time: " + str(end - start) + " seconds.")
+    print(f"Deephaven sum_by expense time: {end - start} seconds.")
     return data_table
 
 
@@ -79,8 +78,6 @@ plot_expenses_sum=figure.plot_xy(series_name="expense", t=deephaven_expense_tabl
 plot_expenses_agg=figure.plot_xy(series_name="expense", t=deephaven_expense_table_agg, x="YEAR",y="AMOUNT").show()
 plot_dh_sum_by_monthly= figure.plot_xy(series_name="expense", t=deephaven_sum_by_monthly, x="MONTH",y="AMOUNT")\
                     .axis(min=-100.0, max=1400.0).show()
-
-
 
 # Everything below here are the panda script we do not use but for your reference.
 # from https://towardsdatascience.com/batch-processing-22gb-of-transaction-data-with-pandas-c6267e65ff36
