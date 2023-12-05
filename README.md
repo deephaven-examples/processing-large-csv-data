@@ -148,3 +148,7 @@ The code looks more complicated than a typical query because we've wrapped every
 Let us know how your query does on [Slack](https://deephaven.io/slack).
 
 There are a lot of options with datasets this large. Time should never be a limiting factor in the data science we can do.
+
+## Note
+
+The code in this repository is built for Deephaven Community Core v0.19.1. No guarantee of forwards or backwards compatibility is given.
